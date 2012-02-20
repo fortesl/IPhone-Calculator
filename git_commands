@@ -1,0 +1,10 @@
+  529  git init
+  530  git add .
+  536  git commit -m "now under source control"
+  538  git user.name "Luis Fortes"
+  539  git --help
+  540  git config --global user.name "Luis Fortes"
+  541  git config --global user.email "fortesl@me.com"
+  542  git commit --amend --reset-author
+  544  history | grep git
+  545  history | grep git >git_commands
