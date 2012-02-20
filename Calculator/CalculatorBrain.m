@@ -91,6 +91,20 @@
     return [self popOperandOffStack:stack];
 }
 
++ (double)runProgram:(id)program usingVariableValues:(NSDictionary *)variableValues
+{
+    double result = 0;
+    
+    return result;
+}
+
++ (NSSet *)variablesUsedInProgram:(id)program
+{
+    id set;
+    
+    return set;
+}
+
 - (void)clearStack
 {
     [self.programStack removeAllObjects];
