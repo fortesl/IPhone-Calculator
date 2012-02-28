@@ -17,7 +17,6 @@
 @implementation CalculatorBrain
 
 @synthesize programStack = _programStack;
-static NSDictionary *_dictionary;
 static NSSet *_validOperations;
 
 - (NSMutableArray *) programStack
@@ -57,17 +56,26 @@ static NSSet *_validOperations;
 
 - (NSSet *)validOperations
 {
-    NSSet *operations = [NSSet setWithObjects:
-                         @"+", 
-                         @"*",
-                         @"-",
-                         @"/",
-                         @"sin",
-                         @"cos",
-                         @"sqrt",
-                         @"+/-",
-                         @"1/x",
-                         nil];
+    NSString *errorDesc = nil;
+    NSPropertyListFormat format;
+    NSString *plistPath;
+    NSString *rootPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                              NSUserDomainMask, YES) objectAtIndex:0];
+    plistPath = [rootPath stringByAppendingPathComponent:@"AvailableOperations.plist"];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:plistPath]) {
+        plistPath = [[NSBundle mainBundle] pathForResource:@"AvailableOperations" ofType:@"plist"];
+    }
+    NSData *plistXML = [[NSFileManager defaultManager] contentsAtPath:plistPath];
+    NSArray *temp = (NSArray *)[NSPropertyListSerialization
+                                          propertyListFromData:plistXML
+                                          mutabilityOption:NSPropertyListMutableContainersAndLeaves
+                                          format:&format
+                                          errorDescription:&errorDesc];
+    if (!temp) {
+        NSLog(@"Error reading plist: %@, format: %d", errorDesc, format);
+    }
+    
+    NSSet *operations = [NSSet setWithArray:temp];
     
     return operations;
 }
@@ -91,7 +99,7 @@ static NSSet *_validOperations;
     return [stack description];
 }
 
-+ (double)popOperandOffStack:(NSMutableArray *)stack
++ (double)popOperandOffStack:(NSMutableArray *)stack usingDictionary:(NSDictionary *)dictionary
 {
     double result = 0;
     
@@ -101,40 +109,42 @@ static NSSet *_validOperations;
     if ([topOfStack isKindOfClass:[NSNumber class]]) {
         result = [topOfStack doubleValue];
     }
-    else if ([topOfStack isKindOfClass:[NSString class]] && 
-             [_dictionary objectForKey:topOfStack]) {
-        result = [[_dictionary objectForKey:topOfStack] doubleValue];
+    else if ([topOfStack isKindOfClass:[NSString class]] && (dictionary != nil) &&
+             [dictionary objectForKey:topOfStack]) {
+        result = [[dictionary objectForKey:topOfStack] doubleValue];
     }
     else if ([topOfStack isKindOfClass:[NSString class]]) {
         NSString *operation = topOfStack;
         if ([operation isEqualToString:@"+"]) {
-            result = [self popOperandOffStack:stack] + [self popOperandOffStack:stack];
+            result = [self popOperandOffStack:stack usingDictionary:dictionary] + 
+            [self popOperandOffStack:stack usingDictionary:dictionary];
         }
         else if ([@"*" isEqualToString:operation]) {
-            result = [self popOperandOffStack:stack] * [self popOperandOffStack:stack];
+            result = [self popOperandOffStack:stack usingDictionary:dictionary] * 
+            [self popOperandOffStack:stack usingDictionary:dictionary];
         }
         else if ([@"-" isEqualToString:operation]) {
-            double last = [self popOperandOffStack:stack];
-            result = [self popOperandOffStack:stack] - last;
+            double last = [self popOperandOffStack:stack usingDictionary:dictionary];
+            result = [self popOperandOffStack:stack usingDictionary:dictionary] - last;
         }
         else if ([@"/" isEqualToString:operation]) {
-            double last = [self popOperandOffStack:stack];
+            double last = [self popOperandOffStack:stack usingDictionary:dictionary];
             if (last != 0) {
-                result = [self popOperandOffStack:stack] / last;
+                result = [self popOperandOffStack:stack usingDictionary:dictionary] / last;
             }
             else result =0;
         }   
         else if ([operation isEqualToString:@"sin"]) {
-            result = sin([self popOperandOffStack:stack]);
+            result = sin([self popOperandOffStack:stack usingDictionary:dictionary]);
         }
         else if ([operation isEqualToString:@"cos"]) {
-            result = cos([self popOperandOffStack:stack]);
+            result = cos([self popOperandOffStack:stack usingDictionary:dictionary]);
         }
         else if ([operation isEqualToString:@"sqrt"]) {
-            result = sqrt([self popOperandOffStack:stack]);
+            result = sqrt([self popOperandOffStack:stack usingDictionary:dictionary]);
         }
         else if ([operation isEqualToString:@"+/-"]) {
-            double last = [self popOperandOffStack:stack];
+            double last = [self popOperandOffStack:stack usingDictionary:dictionary];
             if (last > 0) {
                 result = - fabs(last);
             }
@@ -143,7 +153,7 @@ static NSSet *_validOperations;
             }
         }
         else if ([operation isEqualToString:@"1/x"]) {
-            result = 1/[self popOperandOffStack:stack];
+            result = 1/[self popOperandOffStack:stack usingDictionary:dictionary];
         }
 
     }
@@ -157,7 +167,7 @@ static NSSet *_validOperations;
     if ([program isKindOfClass:[NSArray class]]) {
         stack = [program mutableCopy];
     }
-    return [self popOperandOffStack:stack];
+    return [self popOperandOffStack:stack usingDictionary:nil];
 }
 
 + (double)runProgram:(id)program usingVariableValues:(NSDictionary *)variableValues
@@ -166,8 +176,7 @@ static NSSet *_validOperations;
     if ([program isKindOfClass:[NSArray class]]) {
         stack = [program mutableCopy];
     }
-    _dictionary = [variableValues copy];
-    return [self popOperandOffStack:stack];
+    return [self popOperandOffStack:stack usingDictionary:variableValues];
 }
 
 + (NSSet *)variablesUsedInProgram:(id)program
@@ -197,7 +206,6 @@ static NSSet *_validOperations;
 {
     [self.programStack removeAllObjects];
     self.programStack = nil;
-    _dictionary = nil;
 }
 
 @end
